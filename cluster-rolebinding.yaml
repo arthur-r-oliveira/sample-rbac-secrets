@@ -1,0 +1,13 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: my-serviceaccount-secret-viewer-binding
+  namespace: spring-petclinic # The RoleBinding lives in the target namespace
+subjects:
+- kind: ServiceAccount
+  name: my-serviceaccount
+  namespace: demo-app # Specify the namespace where the ServiceAccount exists
+roleRef:
+  kind: Role
+  name: secret-viewer # Reference the Role created in step 2
+  apiGroup: rbac.authorization.k8s.io
