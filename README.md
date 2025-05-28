@@ -41,7 +41,7 @@ rules:
   verbs: ["get", "list", "watch"]
 [root@ushift06 tmp]# oc create -f role-targetns.yaml 
 role.rbac.authorization.k8s.io/secret-viewer created
-[root@ushift06 tmp]# cat cluster-rolebinding.yaml 
+[root@ushift06 tmp]# cat rolebinding.yaml 
 apiVersion: rbac.authorization.k8s.io/v1
 kind: RoleBinding
 metadata:
@@ -55,7 +55,7 @@ roleRef:
   kind: Role
   name: secret-viewer # Reference the Role created in step 2
   apiGroup: rbac.authorization.k8s.io
-[root@ushift06 tmp]# oc create -f cluster-rolebinding.yaml 
+[root@ushift06 tmp]# oc create -f rolebinding.yaml 
 rolebinding.rbac.authorization.k8s.io/my-serviceaccount-secret-viewer-binding created
 [root@ushift06 tmp]# 
 ~~~
