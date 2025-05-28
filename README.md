@@ -26,7 +26,7 @@ serviceaccount/my-serviceaccount created
 [root@ushift06 tmp]# 
 ~~~
 
-2. Define a Role and a ClusterRole binding (in the target namespace) that grants "view" access to secrets:
+2. Define a Role and a Role binding (in the target namespace) that grants "view" access to secrets:
 
 ~~~
 [root@ushift06 tmp]# cat role-targetns.yaml 
