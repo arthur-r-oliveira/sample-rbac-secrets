@@ -1,3 +1,6 @@
+See https://kubernetes.io/docs/concepts/security/service-accounts/#cross-namespace
+
+
 ~~~
 [root@ushift06 ~]# oc get ns|egrep "demo-app|spring"
 demo-app                             Active   84d
