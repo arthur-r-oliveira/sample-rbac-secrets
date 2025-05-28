@@ -77,78 +77,6 @@ stringData:
 secret/my-test-secret created
 [root@ushift06 tmp]# 
 
-
-[root@ushift06 tmp]# cat pod-test.yaml 
-# app-namespace-test-pod.yaml
-apiVersion: v1
-kind: Pod
-metadata:
-  name: secret-viewer-test-pod
-  namespace: demo-app # Pod runs in app-namespace
-spec:
-  serviceAccountName: my-serviceaccount # Use the service account with permissions
-  # --- START of the crucial securityContext block for the Pod ---
-  securityContext:
-    runAsNonRoot: true # Enforce running as a non-root user
-    seccompProfile:
-      type: RuntimeDefault # Use the default seccomp profile
-  # --- END of the crucial securityContext block for the Pod ---
-  containers:
-  - name: test-secret-access
-    image: quay.io/rhn_support_arolivei/sample-app-minimal:latest
-    command: ["/bin/bash", "-c"]
-    args:
-    - |
-      echo "--- Testing access to secrets in 'spring-petclinic' ---"
-
-      # Get the ServiceAccount token from the pod
-      TOKEN=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
-      echo "ServiceAccount Token loaded."
-
-      # Get the Kubernetes API server URL
-      KUBERNETES_PORT_443_TCP_ADDR=${KUBERNETES_SERVICE_HOST}
-      KUBERNETES_PORT_443_TCP_PORT=${KUBERNETES_SERVICE_PORT}
-      KUBERNETES_API_URL="https://${KUBERNETES_PORT_443_TCP_ADDR}:${KUBERNETES_PORT_443_TCP_PORT}"
-      echo "Kubernetes API URL: ${KUBERNETES_API_URL}"
-
-      echo -e "\n--- Listing secrets in spring-petclinic (should succeed) ---"
-      curl -s -k \
-        -H "Authorization: Bearer $TOKEN" \
-        ${KUBERNETES_API_URL}/api/v1/namespaces/spring-petclinic/secrets | jq .items[].metadata.name
-
-      echo -e "\n--- Getting 'my-test-secret' from spring-petclinic (should succeed) ---"
-      curl -s -k \
-        -H "Authorization: Bearer $TOKEN" \
-        ${KUBERNETES_API_URL}/api/v1/namespaces/spring-petclinic/secrets/my-test-secret | jq .data
-
-      echo -e "\n--- Attempting to create a secret in spring-petclinic (should FAIL - Forbidden) ---"
-      curl -s -k -X POST \
-        -H "Authorization: Bearer $TOKEN" \
-        -H "Content-Type: application/json" \
-        --data '{"apiVersion":"v1","kind":"Secret","metadata":{"name":"forbidden-secret","namespace":"spring-petclinic"},"type":"Opaque","stringData":{"test":"forbidden"}}' \
-        ${KUBERNETES_API_URL}/api/v1/namespaces/spring-petclinic/secrets
-
-      echo -e "\n--- Testing access to secrets in 'app-namespace' (should succeed, by default) ---"
-      curl -s -k \
-        -H "Authorization: Bearer $TOKEN" \
-        ${KUBERNETES_API_URL}/api/v1/namespaces/app-namespace/secrets | jq .items[].metadata.name
-
-      echo -e "\n--- Attempting to create a secret in app-namespace (should succeed by default) ---"
-      curl -s -k -X POST \
-        -H "Authorization: Bearer $TOKEN" \
-        -H "Content-Type: application/json" \
-        --data '{"apiVersion":"v1","kind":"Secret","metadata":{"name":"allowed-secret","namespace":"app-namespace"},"type":"Opaque","stringData":{"test":"allowed"}}' \
-        ${KUBERNETES_API_URL}/api/v1/namespaces/app-namespace/secrets
-
-      sleep 300 # Keep the pod running for inspection
-    # --- START of the crucial securityContext block for the Container ---
-    securityContext:
-      allowPrivilegeEscalation: false # Must be false for restricted SCC
-      capabilities:
-        drop:
-          - ALL # Drop all Linux capabilities
-    # --- END of the crucial securityContext block for the Container ---
-  restartPolicy: Never # Pod will exit after commands, don't restart it
 [root@ushift06 tmp]# oc create -f pod-test.yaml 
 pod/secret-viewer-test-pod created
 [root@ushift06 tmp]# 
@@ -163,9 +91,82 @@ ServiceAccount Token loaded.
 Kubernetes API URL: https://10.43.0.1:443
 
 --- Listing secrets in spring-petclinic (should succeed) ---
+Raw output for spring-petclinic secrets:
+{
+  "kind": "SecretList",
+  "apiVersion": "v1",
+  "metadata": {
+    "resourceVersion": "2569775"
+  },
+  "items": [
+    {
+      "metadata": {
+        "name": "my-test-secret",
+        "namespace": "spring-petclinic",
+        "uid": "aa976af4-b24b-4a19-a287-75ac08f804e2",
+        "resourceVersion": "2568604",
+        "creationTimestamp": "2025-05-28T08:54:09Z",
+        "managedFields": [
+          {
+            "manager": "kubectl-create",
+            "operation": "Update",
+            "apiVersion": "v1",
+            "time": "2025-05-28T08:54:09Z",
+            "fieldsType": "FieldsV1",
+            "fieldsV1": {
+              "f:data": {
+                ".": {},
+                "f:testkey": {}
+              },
+              "f:type": {}
+            }
+          }
+        ]
+      },
+      "data": {
+        "testkey": "dGVzdHZhbHVl"
+      },
+      "type": "Opaque"
+    }
+  ]
+}
+Parsed names:
 "my-test-secret"
 
 --- Getting 'my-test-secret' from spring-petclinic (should succeed) ---
+Raw output for my-test-secret:
+{
+  "kind": "Secret",
+  "apiVersion": "v1",
+  "metadata": {
+    "name": "my-test-secret",
+    "namespace": "spring-petclinic",
+    "uid": "aa976af4-b24b-4a19-a287-75ac08f804e2",
+    "resourceVersion": "2568604",
+    "creationTimestamp": "2025-05-28T08:54:09Z",
+    "managedFields": [
+      {
+        "manager": "kubectl-create",
+        "operation": "Update",
+        "apiVersion": "v1",
+        "time": "2025-05-28T08:54:09Z",
+        "fieldsType": "FieldsV1",
+        "fieldsV1": {
+          "f:data": {
+            ".": {},
+            "f:testkey": {}
+          },
+          "f:type": {}
+        }
+      }
+    ]
+  },
+  "data": {
+    "testkey": "dGVzdHZhbHVl"
+  },
+  "type": "Opaque"
+}
+Parsed data:
 {
   "testkey": "dGVzdHZhbHVl"
 }
@@ -183,20 +184,34 @@ Kubernetes API URL: https://10.43.0.1:443
   },
   "code": 403
 }
---- Testing access to secrets in 'app-namespace' (should succeed, by default) ---
-jq: error (at <stdin>:11): Cannot iterate over null (null)
-
---- Attempting to create a secret in app-namespace (should succeed by default) ---
+--- Testing access to secrets in 'demo-app' (should succeed, by default) ---
+Raw output for demo-app secrets:
 {
   "kind": "Status",
   "apiVersion": "v1",
   "metadata": {},
   "status": "Failure",
-  "message": "secrets is forbidden: User \"system:serviceaccount:demo-app:my-serviceaccount\" cannot create resource \"secrets\" in API group \"\" in the namespace \"app-namespace\"",
+  "message": "secrets is forbidden: User \"system:serviceaccount:demo-app:my-serviceaccount\" cannot list resource \"secrets\" in API group \"\" in the namespace \"demo-app\"",
   "reason": "Forbidden",
   "details": {
     "kind": "secrets"
   },
   "code": 403
+}
+Parsed names:
+jq: error (at <stdin>:12): Cannot iterate over null (null)
+jq failed for demo-app
 
+--- Attempting to create a secret in demo-app (should succeed by default) ---
+{
+  "kind": "Status",
+  "apiVersion": "v1",
+  "metadata": {},
+  "status": "Failure",
+  "message": "secrets is forbidden: User \"system:serviceaccount:demo-app:my-serviceaccount\" cannot create resource \"secrets\" in API group \"\" in the namespace \"demo-app\"",
+  "reason": "Forbidden",
+  "details": {
+    "kind": "secrets"
+  },
+  "code": 403
 ~~~

@@ -1,44 +1,49 @@
-# app-namespace-test-pod.yaml
 apiVersion: v1
 kind: Pod
 metadata:
   name: secret-viewer-test-pod
-  namespace: demo-app # Pod runs in app-namespace
+  namespace: demo-app # Pod runs in demo-app
 spec:
   serviceAccountName: my-serviceaccount # Use the service account with permissions
-  # --- START of the crucial securityContext block for the Pod ---
   securityContext:
-    runAsNonRoot: true # Enforce running as a non-root user
+    runAsNonRoot: true
     seccompProfile:
-      type: RuntimeDefault # Use the default seccomp profile
-  # --- END of the crucial securityContext block for the Pod ---
+      type: RuntimeDefault
   containers:
   - name: test-secret-access
-    image: quay.io/rhn_support_arolivei/sample-app-minimal:latest
+    image:  quay.io/rhn_support_arolivei/sample-app-minimal
     command: ["/bin/bash", "-c"]
     args:
     - |
       echo "--- Testing access to secrets in 'spring-petclinic' ---"
 
-      # Get the ServiceAccount token from the pod
       TOKEN=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
       echo "ServiceAccount Token loaded."
 
-      # Get the Kubernetes API server URL
-      KUBERNETES_PORT_443_TCP_ADDR=${KUBERNETES_SERVICE_HOST}
-      KUBERNETES_PORT_443_TCP_PORT=${KUBERNETES_SERVICE_PORT}
-      KUBERNETES_API_URL="https://${KUBERNETES_PORT_443_TCP_ADDR}:${KUBERNETES_PORT_443_TCP_PORT}"
+      KUBERNETES_API_URL="https://${KUBERNETES_SERVICE_HOST}:${KUBERNETES_SERVICE_PORT}"
       echo "Kubernetes API URL: ${KUBERNETES_API_URL}"
 
       echo -e "\n--- Listing secrets in spring-petclinic (should succeed) ---"
-      curl -s -k \
+      # Debug: Print raw curl output first
+      echo "Raw output for spring-petclinic secrets:"
+      curl_output_data_namespace=$(curl -s -k \
         -H "Authorization: Bearer $TOKEN" \
-        ${KUBERNETES_API_URL}/api/v1/namespaces/spring-petclinic/secrets | jq .items[].metadata.name
+        ${KUBERNETES_API_URL}/api/v1/namespaces/spring-petclinic/secrets)
+      echo "$curl_output_data_namespace"
+      echo "Parsed names:"
+      echo "$curl_output_data_namespace" | jq .items[].metadata.name || echo "jq failed for spring-petclinic"
+
 
       echo -e "\n--- Getting 'my-test-secret' from spring-petclinic (should succeed) ---"
-      curl -s -k \
+      # Debug: Print raw curl output first
+      echo "Raw output for my-test-secret:"
+      curl_output_test_secret=$(curl -s -k \
         -H "Authorization: Bearer $TOKEN" \
-        ${KUBERNETES_API_URL}/api/v1/namespaces/spring-petclinic/secrets/my-test-secret | jq .data
+        ${KUBERNETES_API_URL}/api/v1/namespaces/spring-petclinic/secrets/my-test-secret)
+      echo "$curl_output_test_secret"
+      echo "Parsed data:"
+      echo "$curl_output_test_secret" | jq .data || echo "jq failed for my-test-secret"
+
 
       echo -e "\n--- Attempting to create a secret in spring-petclinic (should FAIL - Forbidden) ---"
       curl -s -k -X POST \
@@ -47,24 +52,29 @@ spec:
         --data '{"apiVersion":"v1","kind":"Secret","metadata":{"name":"forbidden-secret","namespace":"spring-petclinic"},"type":"Opaque","stringData":{"test":"forbidden"}}' \
         ${KUBERNETES_API_URL}/api/v1/namespaces/spring-petclinic/secrets
 
-      echo -e "\n--- Testing access to secrets in 'app-namespace' (should succeed, by default) ---"
-      curl -s -k \
-        -H "Authorization: Bearer $TOKEN" \
-        ${KUBERNETES_API_URL}/api/v1/namespaces/app-namespace/secrets | jq .items[].metadata.name
 
-      echo -e "\n--- Attempting to create a secret in app-namespace (should succeed by default) ---"
+      echo -e "\n--- Testing access to secrets in 'demo-app' (should succeed, by default) ---"
+      # Debug: Print raw curl output first for demo-app
+      echo "Raw output for demo-app secrets:"
+      curl_output_app_namespace=$(curl -s -k \
+        -H "Authorization: Bearer $TOKEN" \
+        ${KUBERNETES_API_URL}/api/v1/namespaces/demo-app/secrets)
+      echo "$curl_output_app_namespace"
+      echo "Parsed names:"
+      echo "$curl_output_app_namespace" | jq .items[].metadata.name || echo "jq failed for demo-app"
+
+
+      echo -e "\n--- Attempting to create a secret in demo-app (should succeed by default) ---"
       curl -s -k -X POST \
         -H "Authorization: Bearer $TOKEN" \
         -H "Content-Type: application/json" \
-        --data '{"apiVersion":"v1","kind":"Secret","metadata":{"name":"allowed-secret","namespace":"app-namespace"},"type":"Opaque","stringData":{"test":"allowed"}}' \
-        ${KUBERNETES_API_URL}/api/v1/namespaces/app-namespace/secrets
+        --data '{"apiVersion":"v1","kind":"Secret","metadata":{"name":"allowed-secret","namespace":"demo-app"},"type":"Opaque","stringData":{"test":"allowed"}}' \
+        ${KUBERNETES_API_URL}/api/v1/namespaces/demo-app/secrets
 
-      sleep 300 # Keep the pod running for inspection
-    # --- START of the crucial securityContext block for the Container ---
+      sleep 300
     securityContext:
-      allowPrivilegeEscalation: false # Must be false for restricted SCC
+      allowPrivilegeEscalation: false
       capabilities:
         drop:
-          - ALL # Drop all Linux capabilities
-    # --- END of the crucial securityContext block for the Container ---
-  restartPolicy: Never # Pod will exit after commands, don't restart it
+          - ALL
+  restartPolicy: Never
