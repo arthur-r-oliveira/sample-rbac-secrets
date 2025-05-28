@@ -8,8 +8,8 @@ spring-petclinic                     Active   78d
 [root@ushift06 ~]# 
 ~~~
 
-demo-app => where is placed the application that needs to read the secret resource
-spring-petclinic => where the secrets is placed on. 
+- namespace demo-app => where is placed the application that needs to read the secret resource
+- namespace spring-petclinic => where the secrets is placed on. 
 
 1. Create the ServiceAccount (if it doesn't exist):
 
