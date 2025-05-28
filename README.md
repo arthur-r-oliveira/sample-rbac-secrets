@@ -1,14 +1,16 @@
+~~~
 [root@ushift06 ~]# oc get ns|egrep "demo-app|spring"
 demo-app                             Active   84d
 spring-petclinic                     Active   78d
 [root@ushift06 ~]# 
+~~~
 
 demo-app => where is placed the application that needs to read the secret resource
 spring-petclinic => where the secrets is placed on. 
 
 1. Create the ServiceAccount (if it doesn't exist):
 
-~~
+~~~
 [root@ushift06 tmp]# cat serviceaccount.yaml 
 apiVersion: v1
 kind: ServiceAccount
@@ -19,11 +21,11 @@ metadata:
 [root@ushift06 tmp]# oc create -f serviceaccount.yaml 
 serviceaccount/my-serviceaccount created
 [root@ushift06 tmp]# 
-~~
+~~~
 
 2. Define a Role and a ClusterRole binding (in the target namespace) that grants "view" access to secrets:
 
-~~
+~~~
 [root@ushift06 tmp]# cat role-targetns.yaml 
 apiVersion: rbac.authorization.k8s.io/v1
 kind: Role
@@ -53,11 +55,11 @@ roleRef:
 [root@ushift06 tmp]# oc create -f cluster-rolebinding.yaml 
 rolebinding.rbac.authorization.k8s.io/my-serviceaccount-secret-viewer-binding created
 [root@ushift06 tmp]# 
-~~
+~~~
 
 3. Test it 
 
-~~
+~~~
 [root@ushift06 tmp]# cat secret.yaml 
 # data-namespace-test-secret.yaml
 apiVersion: v1
@@ -147,11 +149,11 @@ spec:
 [root@ushift06 tmp]# oc create -f pod-test.yaml 
 pod/secret-viewer-test-pod created
 [root@ushift06 tmp]# 
-~~
+~~~
 
 4. Check the logs: 
 
-~~
+~~~
 [root@ushift06 tmp]# oc logs pod/secret-viewer-test-pod -n demo-app
 --- Testing access to secrets in 'spring-petclinic' ---
 ServiceAccount Token loaded.
@@ -194,4 +196,4 @@ jq: error (at <stdin>:11): Cannot iterate over null (null)
   },
   "code": 403
 
-~~
+~~~
